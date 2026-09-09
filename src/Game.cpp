@@ -13,10 +13,14 @@ Game::Game()
           sf::VideoMode({1280, 720}),
           "VectorStrike"
       ),
+            enemyGrid(80.0f),
       state(GameState::Playing),
       score(0),
       health(100),
       spawnTimer(0.0f),
+      collisionChecks(0),
+      benchmarkMode(false),
+      benchmarkEntityCount(0),
       scoreText(font),
       healthText(font),
       gameOverText(font),
@@ -93,6 +97,25 @@ void Game::processEvents()
         if (const auto* keyPressed =
                 event->getIf<sf::Event::KeyPressed>())
         {
+            if (keyPressed->code == sf::Keyboard::Key::F1)
+            {
+                stopBenchmark();
+            }
+
+            if (keyPressed->code == sf::Keyboard::Key::F2)
+            {
+                startBenchmark(200);
+            }
+
+            if (keyPressed->code == sf::Keyboard::Key::F3)
+            {
+                startBenchmark(500);
+            }
+
+            if (keyPressed->code == sf::Keyboard::Key::F4)
+            {
+                startBenchmark(1000);
+            }
             if (keyPressed->code == sf::Keyboard::Key::R &&
                 state == GameState::GameOver)
             {
@@ -116,7 +139,8 @@ void Game::processEvents()
                 event->getIf<sf::Event::MouseButtonPressed>())
         {
             if (mousePressed->button == sf::Mouse::Button::Left &&
-                state == GameState::Playing)
+                state == GameState::Playing &&
+                !benchmarkMode)
             {
                 player.shoot(bullets);
             }
@@ -126,6 +150,7 @@ void Game::processEvents()
 
 void Game::update(float deltaTime)
 {
+    collisionChecks = 0;
     player.update(deltaTime);
 
     for (auto& bullet : bullets)
@@ -133,9 +158,12 @@ void Game::update(float deltaTime)
         bullet.update(deltaTime);
     }
 
-    for (auto& enemy : enemies)
+    if (!benchmarkMode)
     {
-        enemy.update(deltaTime, player.getPosition());
+        for (auto& enemy : enemies)
+        {
+            enemy.update(deltaTime, player.getPosition());
+        }
     }
 
     bullets.erase(
@@ -151,7 +179,7 @@ void Game::update(float deltaTime)
 
     spawnTimer += deltaTime;
 
-    if (spawnTimer >= 1.0f)
+    if (!benchmarkMode && spawnTimer >= 1.0f)
     {
         spawnEnemy();
         spawnTimer = 0.0f;
@@ -192,9 +220,17 @@ void Game::updatePerformanceStats(float deltaTime)
     stats << std::fixed << std::setprecision(1);
 
     stats << "FPS: " << fps
-          << " | Frame: " << frameTimeMs << " ms"
-          << " | Enemies: " << enemies.size()
-          << " | Bullets: " << bullets.size();
+        << " | Frame: " << frameTimeMs << " ms"
+        << " | Enemies: " << enemies.size()
+        << " | Bullets: " << bullets.size()
+        << " | Collision Checks: " << collisionChecks;
+
+    if (benchmarkMode)
+    {
+        stats << "\nBENCHMARK: "
+            << benchmarkEntityCount
+            << " entities | F1=Normal F2=200 F3=500 F4=1000";
+    }
 
     performanceText.setString(stats.str());
 }
@@ -264,36 +300,81 @@ void Game::spawnEnemy()
     enemies.emplace_back(sf::Vector2f{x, y});
 }
 
+void Game::buildSpatialHash()
+{
+    enemyGrid.clear();
+
+    for (std::size_t i = 0; i < enemies.size(); ++i)
+    {
+        enemyGrid.insert(
+            static_cast<int>(i),
+            enemies[i].getBounds()
+        );
+    }
+}
+
 void Game::handleCollisions()
 {
+    collisionChecks = 0;
+
     for (auto bulletIt = bullets.begin();
          bulletIt != bullets.end();)
     {
         bool bulletRemoved = false;
 
-        for (auto enemyIt = enemies.begin();
-             enemyIt != enemies.end();)
+        if (!benchmarkMode)
         {
-            if (bulletIt->getBounds().findIntersection(
-                    enemyIt->getBounds()))
+            for (auto enemyIt = enemies.begin();
+                 enemyIt != enemies.end();)
             {
-                enemyIt = enemies.erase(enemyIt);
-                bulletIt = bullets.erase(bulletIt);
+                ++collisionChecks;
+                if (bulletIt->getBounds().findIntersection(
+                        enemyIt->getBounds()))
+                {
+                    enemyIt = enemies.erase(enemyIt);
+                    bulletIt = bullets.erase(bulletIt);
 
-                ++score;
-                bulletRemoved = true;
+                    ++score;
+                    bulletRemoved = true;
 
-                break;
-            }
-            else
-            {
-                ++enemyIt;
+                    break;
+                }
+                else
+                {
+                    ++enemyIt;
+                }
             }
         }
 
         if (!bulletRemoved)
         {
             ++bulletIt;
+        }
+    }
+
+    if (benchmarkMode)
+    {
+        buildSpatialHash();
+
+        for (std::size_t i = 0; i < enemies.size(); ++i)
+        {
+            sf::FloatRect bounds = enemies[i].getBounds();
+            std::vector<int> candidates = enemyGrid.query(bounds);
+
+            for (int j : candidates)
+            {
+                if (j <= static_cast<int>(i))
+                    continue;
+
+                ++collisionChecks;
+
+                if (enemies[i].getBounds().findIntersection(
+                        enemies[j].getBounds()))
+                {
+                    // Collision detected.
+                    // No response yet; this is a benchmark.
+                }
+            }
         }
     }
 
@@ -310,5 +391,51 @@ void Game::handleCollisions()
         {
             ++enemyIt;
         }
+    }
+}
+void Game::startBenchmark(int entityCount)
+{
+    benchmarkMode = true;
+    benchmarkEntityCount = entityCount;
+
+    state = GameState::Playing;
+
+    health = 1000000;
+    score = 0;
+
+    bullets.clear();
+    enemies.clear();
+
+    spawnTimer = 0.0f;
+
+    for (int i = 0; i < entityCount; ++i)
+    {
+        float x = 50.0f +
+                  static_cast<float>(std::rand() % 1180);
+
+        float y = 150.0f +
+                  static_cast<float>(std::rand() % 520);
+
+        enemies.emplace_back(sf::Vector2f{x, y});
+    }
+}
+void Game::stopBenchmark()
+{
+    benchmarkMode = false;
+    benchmarkEntityCount = 0;
+
+    enemies.clear();
+    bullets.clear();
+
+    score = 0;
+    health = 100;
+
+    spawnTimer = 0.0f;
+
+    state = GameState::Playing;
+
+    for (int i = 0; i < 5; ++i)
+    {
+        spawnEnemy();
     }
 }
