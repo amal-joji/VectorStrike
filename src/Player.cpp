@@ -13,6 +13,9 @@ Player::Player()
     shape.setOrigin(sf::Vector2f{20.0f, 20.0f});
 
     shape.setPosition(sf::Vector2f{640.0f, 360.0f});
+    shape.setFillColor(sf::Color(74, 201, 255));
+    shape.setOutlineColor(sf::Color(192, 243, 255));
+    shape.setOutlineThickness(2.0f);
 }
 
 void Player::update(float deltaTime)
@@ -68,19 +71,15 @@ void Player::update(float deltaTime)
     }
 }
 
-void Player::shoot(std::vector<Bullet>& bullets)
+void Player::shoot(
+    std::vector<Bullet>& bullets,
+    sf::Vector2f target
+)
 {
     if (shootTimer > 0.0f)
     {
         return;
     }
-
-    sf::Vector2i mousePosition = sf::Mouse::getPosition();
-
-    sf::Vector2f target{
-        static_cast<float>(mousePosition.x),
-        static_cast<float>(mousePosition.y)
-    };
 
     sf::Vector2f direction = target - shape.getPosition();
 

@@ -5,6 +5,7 @@
 #include <vector>
 #include <cmath>
 #include <utility>
+#include <algorithm>
 
 class SpatialHash
 {
@@ -39,6 +40,16 @@ public:
     std::vector<int> query(const sf::FloatRect& bounds) const
     {
         std::vector<int> result;
+        query(bounds, result);
+        return result;
+    }
+
+    void query(
+        const sf::FloatRect& bounds,
+        std::vector<int>& result
+    ) const
+    {
+        result.clear();
 
         int minX = cellX(bounds.position.x);
         int maxX = cellX(bounds.position.x + bounds.size.x);
@@ -62,7 +73,11 @@ public:
             }
         }
 
-        return result;
+        std::sort(result.begin(), result.end());
+        result.erase(
+            std::unique(result.begin(), result.end()),
+            result.end()
+        );
     }
 
     std::size_t cellCount() const

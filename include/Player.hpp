@@ -11,7 +11,10 @@ public:
     Player();
 
     void update(float deltaTime);
-    void shoot(std::vector<Bullet>& bullets);
+    void shoot(
+        std::vector<Bullet>& bullets,
+        sf::Vector2f target
+    );
 
     void draw(sf::RenderWindow& window);
 

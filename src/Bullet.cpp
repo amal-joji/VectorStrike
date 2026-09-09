@@ -8,6 +8,9 @@ Bullet::Bullet(sf::Vector2f position, sf::Vector2f direction)
     shape.setRadius(4.0f);
     shape.setOrigin(sf::Vector2f{4.0f, 4.0f});
     shape.setPosition(position);
+    shape.setFillColor(sf::Color(255, 220, 92));
+    shape.setOutlineColor(sf::Color(255, 245, 190));
+    shape.setOutlineThickness(1.0f);
 
     // Normalize direction
     float length = std::sqrt(
